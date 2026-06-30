@@ -36,6 +36,36 @@ func TestSplitAttrsBareWordAfterAttrs(t *testing.T) {
 	}
 }
 
+// TestForOverHash covers toSlice's map[string]any arm deterministically (the
+// gem oracle also checks this, but the oracle skips where the liquid gem is
+// absent — the qemu, Windows, and gem-less unix lanes — so this keeps the arm
+// covered there). Iterating a hash yields [key, value] pairs in sorted-key
+// order, matching the gem.
+func TestForOverHash(t *testing.T) {
+	eq(t, "{% for kv in h %}{{ kv[0] }}={{ kv[1] }} {% endfor %}",
+		map[string]any{"h": map[string]any{"b": 2, "a": 1}}, "a=1 b=2 ")
+}
+
+// TestWhereArms covers where's two arms deterministically — the matching
+// two-argument form (field == value) and the single-argument truthiness form.
+// The oracle exercises both too but skips where the liquid gem is absent (the
+// qemu, Windows, and gem-less unix lanes), so these keep the arms covered there.
+func TestWhereArms(t *testing.T) {
+	// Two-argument, value matches: keeps the element.
+	eq(t, "{{ a | where: 'on', true | map: 'n' | join: ',' }}",
+		map[string]any{"a": []any{
+			map[string]any{"n": "x", "on": true},
+			map[string]any{"n": "y", "on": false},
+		}}, "x")
+	// Single-argument, filter by truthiness of the field.
+	eq(t, "{{ a | where: 'ok' | map: 'n' | join: ',' }}",
+		map[string]any{"a": []any{
+			map[string]any{"n": "x", "ok": true},
+			map[string]any{"n": "y", "ok": false},
+			map[string]any{"n": "z", "ok": true},
+		}}, "x,z")
+}
+
 // TestAppendTextEmptyDirect covers appendText's empty-string short-circuit
 // directly: the tokenizer never feeds it an empty run, so the guard is exercised
 // here at the package level to prove it returns the slice unchanged.
