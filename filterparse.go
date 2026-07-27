@@ -66,6 +66,13 @@ func (fc filterCall) apply(ctx *context, in any) (any, *Error) {
 	for i, ae := range fc.args {
 		args[i] = ae.eval(ctx)
 	}
+	if fn, ok := ctx.filters[fc.name]; ok {
+		out, err := fn(in, args)
+		if err != nil {
+			return nil, &Error{Type: "ArgumentError", Message: err.Error()}
+		}
+		return out, nil
+	}
 	return applyFilter(fc.name, in, args)
 }
 
