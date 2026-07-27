@@ -14,6 +14,7 @@ type context struct {
 	mode       ErrorMode
 	errors     []error
 	depthGuard int
+	filters    map[string]Filter // host-supplied custom filters (may be nil)
 }
 
 func newContext(assigns map[string]any, mode ErrorMode) *context {

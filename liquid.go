@@ -37,8 +37,9 @@ import "strings"
 
 // Template is a parsed Liquid template ready to render.
 type Template struct {
-	root   *blockNode
-	errors []error // errors collected during a lax/warn render
+	root    *blockNode
+	errors  []error           // errors collected during a lax/warn render
+	filters map[string]Filter // host-supplied custom filters (may be nil)
 }
 
 // ErrorMode selects how parse and render errors are surfaced.
@@ -58,7 +59,8 @@ const (
 type Option func(*parseConfig)
 
 type parseConfig struct {
-	mode ErrorMode
+	mode    ErrorMode
+	filters map[string]Filter
 }
 
 // WithErrorMode selects the parse/render error mode (default Lax).
@@ -84,7 +86,7 @@ func Parse(src string, opts ...Option) (*Template, error) {
 	// parseBlock(nil) consumes the whole token stream: a stray end-tag (e.g.
 	// {% endif %} with no opener) is reported by parseTag as an unknown tag, so
 	// there is never a leftover token here.
-	return &Template{root: root}, nil
+	return &Template{root: root, filters: cfg.filters}, nil
 }
 
 // MustParse is Parse without error handling, for tests and trusted templates.
@@ -111,6 +113,7 @@ func (t *Template) RenderStrict(assigns map[string]any) (string, error) {
 func (t *Template) render(assigns map[string]any, mode ErrorMode) (string, error) {
 	var sb strings.Builder
 	ctx := newContext(assigns, mode)
+	ctx.filters = t.filters
 	err := t.root.render(&sb, ctx)
 	t.errors = ctx.errors
 	if err != nil {
