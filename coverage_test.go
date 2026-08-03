@@ -138,6 +138,26 @@ func TestDateAllDirectives(t *testing.T) {
 	}
 }
 
+// TestDatePaddingFlags exercises the glibc padding flags (-, _, 0, ^) on
+// strftime directives. Expected values are verified against Ruby's
+// Time#strftime for 2026-08-03 07:05:09 (a Monday).
+func TestDatePaddingFlags(t *testing.T) {
+	d := map[string]any{"d": "2026-08-03T07:05:09Z"}
+	cases := map[string]string{
+		"%-d": "3", "%-m": "8", "%-H": "7", "%d": "03", "%e": " 3",
+		"%_d": " 3", "%0d": "03", "%-I": "7", "%-M": "5", "%-S": "9",
+		"%-j": "215", "%-y": "26", "%_H": " 7", "%-w": "1",
+		"%^b": "AUG", "%^A": "MONDAY", "%^p": "AM", "%b %-d, %Y": "Aug 3, 2026",
+		// Lenient fallbacks where Ruby would raise: a trailing flagged % and an
+		// unknown flagged directive are emitted literally.
+		"a%-": "a%-",
+		"%-Q": "%-Q",
+	}
+	for f, want := range cases {
+		eq(t, "{{ d | date: '"+f+"' }}", d, want)
+	}
+}
+
 // TestConditionEdges covers comparison/condition branches.
 func TestConditionEdges(t *testing.T) {
 	eq(t, "{% if a == b %}y{% else %}n{% endif %}", map[string]any{"a": nil, "b": nil}, "y")

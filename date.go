@@ -84,94 +84,124 @@ func parseDateString(s string) (time.Time, bool) {
 	return time.Time{}, false
 }
 
-// strftime renders the Ruby strftime directives the date filter commonly uses.
+// strftime renders the Ruby strftime directives the date filter commonly uses,
+// including the glibc padding flags a conversion may carry: `-` (no padding),
+// `_` (space padding), `0` (zero padding) and `^` (upcase). Jekyll's minima
+// theme, for example, formats post dates with "%b %-d, %Y".
 func strftime(t time.Time, format string) string {
 	var sb strings.Builder
 	for i := 0; i < len(format); i++ {
-		if format[i] != '%' || i+1 >= len(format) {
+		if format[i] != '%' {
 			sb.WriteByte(format[i])
 			continue
 		}
-		i++
-		switch format[i] {
-		case 'Y':
-			sb.WriteString(strconv.Itoa(t.Year()))
-		case 'y':
-			sb.WriteString(pad2(t.Year() % 100))
-		case 'm':
-			sb.WriteString(pad2(int(t.Month())))
-		case 'd':
-			sb.WriteString(pad2(t.Day()))
-		case 'e':
-			sb.WriteString(padSpace2(t.Day()))
-		case 'H':
-			sb.WriteString(pad2(t.Hour()))
-		case 'I':
-			h := t.Hour() % 12
-			if h == 0 {
-				h = 12
+		// Consume optional flags (-, _, 0, ^, #) between the % and the directive.
+		j := i + 1
+		var flag byte
+		for j < len(format) {
+			switch format[j] {
+			case '-', '_', '0', '^', '#':
+				flag = format[j]
+				j++
+				continue
 			}
-			sb.WriteString(pad2(h))
-		case 'M':
-			sb.WriteString(pad2(t.Minute()))
-		case 'S':
-			sb.WriteString(pad2(t.Second()))
-		case 'p':
-			if t.Hour() < 12 {
-				sb.WriteString("AM")
-			} else {
-				sb.WriteString("PM")
-			}
-		case 'P':
-			if t.Hour() < 12 {
-				sb.WriteString("am")
-			} else {
-				sb.WriteString("pm")
-			}
-		case 'A':
-			sb.WriteString(t.Weekday().String())
-		case 'a':
-			sb.WriteString(t.Weekday().String()[:3])
-		case 'B':
-			sb.WriteString(t.Month().String())
-		case 'b', 'h':
-			sb.WriteString(t.Month().String()[:3])
-		case 'j':
-			sb.WriteString(pad3(t.YearDay()))
-		case 'w':
-			sb.WriteString(strconv.Itoa(int(t.Weekday())))
-		case 'Z':
-			sb.WriteString(t.Format("MST"))
-		case 'z':
-			sb.WriteString(t.Format("-0700"))
-		case '%':
-			sb.WriteByte('%')
-		default:
-			sb.WriteByte('%')
-			sb.WriteByte(format[i])
+			break
 		}
+		if j >= len(format) {
+			// A trailing % (with any flags) is emitted literally.
+			sb.WriteString(format[i:])
+			break
+		}
+		sb.WriteString(strftimeDirective(t, format[j], flag))
+		i = j
 	}
 	return sb.String()
 }
 
-func pad2(n int) string {
-	if n < 10 {
-		return "0" + strconv.Itoa(n)
+// strftimeDirective renders one directive character honoring a leading padding
+// flag. Numeric directives respect -/_/0; textual directives respect ^ (upcase).
+func strftimeDirective(t time.Time, d, flag byte) string {
+	switch d {
+	case 'Y':
+		return padNum(t.Year(), 0, flag)
+	case 'y':
+		return padNum(t.Year()%100, 2, flag)
+	case 'm':
+		return padNum(int(t.Month()), 2, flag)
+	case 'd':
+		return padNum(t.Day(), 2, flag)
+	case 'e':
+		// %e is space-padded day; equivalent to %_d.
+		return padNum(t.Day(), 2, '_')
+	case 'H':
+		return padNum(t.Hour(), 2, flag)
+	case 'I':
+		h := t.Hour() % 12
+		if h == 0 {
+			h = 12
+		}
+		return padNum(h, 2, flag)
+	case 'M':
+		return padNum(t.Minute(), 2, flag)
+	case 'S':
+		return padNum(t.Second(), 2, flag)
+	case 'j':
+		return padNum(t.YearDay(), 3, flag)
+	case 'w':
+		return padNum(int(t.Weekday()), 0, flag)
+	case 'p':
+		return upcaseFlag(ampm(t, "AM", "PM"), flag)
+	case 'P':
+		return upcaseFlag(ampm(t, "am", "pm"), flag)
+	case 'A':
+		return upcaseFlag(t.Weekday().String(), flag)
+	case 'a':
+		return upcaseFlag(t.Weekday().String()[:3], flag)
+	case 'B':
+		return upcaseFlag(t.Month().String(), flag)
+	case 'b', 'h':
+		return upcaseFlag(t.Month().String()[:3], flag)
+	case 'Z':
+		return upcaseFlag(t.Format("MST"), flag)
+	case 'z':
+		return t.Format("-0700")
+	case '%':
+		return "%"
+	default:
+		if flag != 0 {
+			return "%" + string(flag) + string(d)
+		}
+		return "%" + string(d)
 	}
-	return strconv.Itoa(n)
 }
 
-func padSpace2(n int) string {
-	if n < 10 {
-		return " " + strconv.Itoa(n)
+func ampm(t time.Time, am, pm string) string {
+	if t.Hour() < 12 {
+		return am
 	}
-	return strconv.Itoa(n)
+	return pm
 }
 
-func pad3(n int) string {
-	s := strconv.Itoa(n)
-	for len(s) < 3 {
-		s = "0" + s
+func upcaseFlag(s string, flag byte) string {
+	if flag == '^' {
+		return strings.ToUpper(s)
+	}
+	return s
+}
+
+// padNum renders v in the requested minimum width using the padding implied by
+// flag: '-' none, '_' spaces, '0' or default zeros. A zero width never pads.
+func padNum(v, width int, flag byte) string {
+	s := strconv.Itoa(v)
+	if flag == '-' {
+		return s
+	}
+	fill := byte('0')
+	if flag == '_' {
+		fill = ' '
+	}
+	for len(s) < width {
+		s = string(fill) + s
 	}
 	return s
 }
