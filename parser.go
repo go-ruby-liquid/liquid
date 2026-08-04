@@ -352,31 +352,20 @@ func (p *parser) parseComment() (node, error) {
 	return nil, syntaxErr("'comment' tag was never closed")
 }
 
-// parseRaw captures the literal text between {% raw %} and {% endraw %}.
+// parseRaw emits the literal {% raw %}…{% endraw %} body. The tokenizer captures
+// that body verbatim as a single tokRaw (see scanRaw), so the parser only has to
+// take it and consume the trailing endraw tag; a missing endraw is an error.
 func (p *parser) parseRaw() (node, error) {
-	var sb strings.Builder
-	for p.pos < len(p.toks) {
-		t := p.toks[p.pos]
-		if t.kind == tokTag && t.name == "endraw" {
-			p.pos++
-			return &rawNode{text: sb.String()}, nil
-		}
-		sb.WriteString(rawText(t))
+	var body string
+	if p.pos < len(p.toks) && p.toks[p.pos].kind == tokRaw {
+		body = p.toks[p.pos].body
 		p.pos++
 	}
-	return nil, syntaxErr("'raw' tag was never closed")
-}
-
-// rawText reconstructs the original source of a token inside a raw block.
-func rawText(t token) string {
-	switch t.kind {
-	case tokText:
-		return t.body
-	case tokOutput:
-		return "{{ " + t.body + " }}"
-	default:
-		return "{% " + t.body + " %}"
+	if p.pos < len(p.toks) && p.toks[p.pos].kind == tokTag && p.toks[p.pos].name == "endraw" {
+		p.pos++
+		return &rawNode{text: body}, nil
 	}
+	return nil, syntaxErr("'raw' tag was never closed")
 }
 
 // consumeEnd consumes the matching end tag. parseBlock only returns with its
