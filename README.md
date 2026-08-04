@@ -47,7 +47,9 @@ gem on every supported platform:
   `divided_by` `modulo` `round` `ceil` `floor` `abs` `at_least` `at_most`
   `default`, and `date` (strftime).
 - **Whitespace control** — `{%-` / `-%}` and `{{-` / `-}}` strip the adjacent
-  text run exactly as the gem does.
+  text run exactly as the gem does, using Ruby's `lstrip`/`rstrip` character set
+  (space, tab, `\r`, `\n`, `\v`, `\f`, NUL). Markers inside a `{% raw %}` body
+  stay literal and untrimmed.
 - **Variable lookup** — dotted (`a.b.c`), bracketed (`a[0]`, `a["k"]`,
   `a[var]`), the `size` / `first` / `last` pseudo-properties, negative array
   indexing, and the `Drop` interface for host objects.
