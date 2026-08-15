@@ -1,3 +1,11 @@
+> [!WARNING]
+> **DEPRECATED — this repository is a stale duplicate, kept in place (not archived) for reference.**
+>
+> The maintained source of truth is **[github.com/go-liquid/liquid](https://github.com/go-liquid/liquid)**.
+> All consumers (rbgo, jekyll, wasmbox) depend on `github.com/go-liquid/liquid`; do not add new dependencies on this `go-ruby-liquid` path.
+
+---
+
 <p align="center"><img src="https://raw.githubusercontent.com/go-ruby-liquid/brand/main/social/go-ruby-liquid-liquid.png" alt="go-ruby-liquid/liquid" width="720"></p>
 
 # liquid — go-ruby-liquid
